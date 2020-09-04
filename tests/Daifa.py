@@ -34,11 +34,6 @@ class IBapi(EWrapper, EClient):
         contract.secType, "Currency:", contract.currency, "Position:", position, "Avg cost:", avgCost)
 
 
-
-
-# Function to create FX Order contract
-
-
 def FX_order(symbol):
     contract = Contract()
     contract.symbol = symbol[:3]
@@ -51,76 +46,44 @@ def createInstance(address,port,client_ID):
     app = IBapi()
     app.connect(address,port,client_ID)
     app.nextorderId = None
+    print("within Create")
     return app
 
-master_app = createInstance('127.0.0.1', 7496, 1)
+print("start of Prog")
+
+master_app = createInstance('127.0.0.1', 7498, 1)
+
+print("After Master app")
+
+# apps = [] 
 
 
-apps = [] 
+# start_port = 7499
+# start_client = 124
+# for i in range(1):
+#     temp_app = createInstance('127.0.0.1', start_port + i, start_client + i)
+#     apps.append(temp_app)
 
+def runMasterLoop():
+    print('68')
+    master_app.run()
+    print('69')
+    while not isinstance(master_app.nextorderId, int):
+        print('connecting')
+        # master_app.run()
+    print('Master App connected')
 
-start_port = 7498
-start_client = 124
-for i in range(2):
-    temp_app = createInstance('127.0.0.1', start_port + i, start_client + i)
-    apps.append(temp_app)
-
-
-def run_loop():
-    for app in apps:
-        app.run()
-        while not isinstance(app.nextorderId, int):
-            print('connecting')
-            app.run()
-        print('connected')
-    
-    # will only come out of the instance if it is a instance. thus connect after break
-    #     
-    # app.run()
-    # app2.run()
-
-
-# app = IBapi()
-# app2 = IBapi()
-# app.connect('127.0.0.1', 7496, 124)
-# app2.connect('127.0.0.1', 7498, 125)
-# send data to another port
-# 
-# app.nextorderId = None
-# app2.nextorderId = None
-
-# Start the socket in a thread
-api_thread = threading.Thread(target=run_loop, daemon=True)
-api_thread.start()
-
-# Check if the API is connected via orderid
-# while True:
-#     if isinstance(app.nextorderId, int):
+runMasterLoop()
+# def run_loop():
+#     for app in apps:
+#         app.run()
+#         while not isinstance(app.nextorderId, int):
+#             print('connecting')
+#             app.run()
 #         print('connected')
-#         break
-#     else:
-#         print('waiting for connection')
-#         time.sleep(1)
 
-# Create order object
-order = Order()
-order.action = 'BUY'
-order.totalQuantity = 100000
-order.orderType = 'LMT'
-order.lmtPrice = '1.10'
 
-# Place order
-# app.placeOrder(app.nextorderId, FX_order('EURUSD'), order)
-# app2.placeOrder(app.nextorderId, FX_order('EURUSD'), order)
-#app.nextorderId += 1
-
-# app.reqPositions()
-
-# time.sleep(3)
-
-# Cancel order
-# print('cancelling order')
-# app.cancelOrder(app.nextorderId)
-
-# time.sleep(3)
-# app.disconnect()
+# api_thread = threading.Thread(target=runMasterLoop, daemon=True)
+# api_thread.start()
+# api_thread2 = threading.Tread(target=run_loop, daemon=True)
+# api_thread2.start()
