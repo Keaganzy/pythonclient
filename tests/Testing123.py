@@ -46,6 +46,7 @@ class IBapi(EWrapper, EClient):
                         print('append')                   
                         # if(arrayx(orderId)): #check array for -orderId
                         print(x)
+                        order.totalQuantity /= 5
                         app1.placeOrder(app1.nextorderId, contract, order) #place order based on client 0 order
                         app1.reqIds(app1.nextorderId) #reqID increments the next validId *some error.. the api calls this 3 times per trade i do. fking retard. might be because of the threading also. need to do some self check on -id
             print('openOrder id:', orderId, contract.symbol, contract.secType, '@', contract.exchange, ':', order.action, order.orderType, order.totalQuantity, orderState.status)
@@ -95,7 +96,7 @@ def arrayx(orderId): #failed at using array. FML...
 app = IBapi()
 app1 = IBapi()
 app.connect('127.0.0.1', 7498, 0)
-app1.connect('127.0.0.1', 7499, 1)
+app1.connect('192.168.1.43', 7499, 1)
 
 app.nextorderId = None
 app1.nextorderId = None
@@ -103,11 +104,11 @@ app1.nextorderId = None
 #Start the socket in a thread
 api_thread = threading.Thread(target=run_loop, daemon=True)
 api_thread.start()
-time.sleep(5)
+time.sleep(3)
 
 api_thread1 = threading.Thread(target=run_loop1, daemon=True)
 api_thread1.start()
-time.sleep(5)
+time.sleep(3)
 
 
 #Check if the API is connected via orderid
