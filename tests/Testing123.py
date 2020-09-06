@@ -95,8 +95,8 @@ def arrayx(orderId): #failed at using array. FML...
 
 app = IBapi()
 app1 = IBapi()
-app.connect('127.0.0.1', 7498, 0)
-app1.connect('192.168.1.43', 7499, 1)
+app.connect('192.168.1.33', 7498, 0)
+app1.connect('192.168.1.43', 7499, 1) #might have to use private tunnel or portforwarding
 
 app.nextorderId = None
 app1.nextorderId = None
