@@ -39,7 +39,7 @@ def FX_order(symbol):
     contract.symbol = symbol[:3]
     contract.secType = 'CASH'
     contract.exchange = 'IDEALPRO'
-    contract.currency = symbol[3:]
+    contract.currency = symbol[:3]
     return contract
 
 def createInstance(address,port,client_ID):
@@ -51,29 +51,34 @@ def createInstance(address,port,client_ID):
 
 print("start of Prog")
 
-master_app = createInstance('127.0.0.1', 7498, 1)
+def run_loop():
+        master_app.run()
+        apps.run()
+
+
+master_app = createInstance('127.0.0.1', 7498, 0)
 
 print("After Master app")
 
-# apps = [] 
+apps = [] 
 
 
-# start_port = 7499
-# start_client = 124
-# for i in range(1):
-#     temp_app = createInstance('127.0.0.1', start_port + i, start_client + i)
-#     apps.append(temp_app)
+start_port = 7499
+start_client = 1
+for i in range(1):
+    temp_app = createInstance('127.0.0.1', start_port + i, start_client + i)
+    apps.append(temp_app)
 
-def runMasterLoop():
-    print('68')
-    master_app.run()
-    print('69')
-    while not isinstance(master_app.nextorderId, int):
-        print('connecting')
-        # master_app.run()
-    print('Master App connected')
+# def runMasterLoop():
+#     print('68')
+#     # master_app.run()
+#     print('69')
+#     while not isinstance(master_app.nextorderId, int):
+#         print('connecting')
+#         master_app.run()
+#     print('Master App connected')
 
-runMasterLoop()
+# runMasterLoop()
 # def run_loop():
 #     for app in apps:
 #         app.run()
@@ -83,7 +88,51 @@ runMasterLoop()
 #         print('connected')
 
 
-# api_thread = threading.Thread(target=runMasterLoop, daemon=True)
-# api_thread.start()
+api_thread = threading.Thread(target=run_loop, daemon=True)
+api_thread.start()
+
+time.sleep(1)
 # api_thread2 = threading.Tread(target=run_loop, daemon=True)
 # api_thread2.start()
+
+
+# master_app.reqPositions()
+
+# Create order object
+order = Order()
+order.action = 'BUY'
+order.totalQuantity = 10
+order.orderType = 'LMT'
+order.lmtPrice = '396'
+
+print("Asdasd",apps[0].nextorderId)
+nextorderId = apps[0].nextValidId(apps[0].orderId)
+print("Asdasd123",apps[0].nextorderId)
+print("123123",master_app.nextorderId) # I think the wrapper is not doing the automatic details to the array due to some restrictions or sth. cos the master_app.nextorderId seems to be updated even before going into the connection check loop
+
+# int(apps[0].nextorderId)
+
+# while True:
+#     if isinstance(apps[0].nextorderId, int):
+#         print('connected')
+#         break
+#     else:
+#         print('waiting for connection')
+#         time.sleep(1)
+
+while True:
+    if isinstance(master_app.nextorderId, int):
+        print('connected')
+        break
+    else:
+        print('waiting for connection')
+        time.sleep(1)        
+
+# apps.placeOrder(apps.nextorderId, FX_order('TSLA'), order)
+# master_app.placeOrder(master_app.nextorderId, FX_order('TSLA'), order)
+# master_app.cancelOrder(1)
+
+# apps[0].placeOrder(apps[0].nextorderId, FX_order('EURUSD'), order)
+
+print("Asdasd",apps[0].nextorderId)
+print("aretyrtyrty",master_app.nextorderId)
