@@ -134,5 +134,5 @@ while True:
 
 # apps[0].placeOrder(apps[0].nextorderId, FX_order('EURUSD'), order)
 
-print("Asdasd",apps[0].nextorderId)
-print("aretyrtyrty",master_app.nextorderId)
+# print("Asdasd",apps[0].nextorderId)
+# print("aretyrtyrty",master_app.nextorderId)
