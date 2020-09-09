@@ -2,9 +2,11 @@ from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import *
+from datetime import datetime
 
 import threading
 import time
+
 
 class IBapi(EWrapper, EClient):
     def __init__(self):
@@ -48,7 +50,7 @@ class IBapi(EWrapper, EClient):
                         print(child['order_list'], '\n\n\n')
                         
                         if contract.secType == "STK":
-                            order.totalQuantity /= 5
+                            order.totalQuantity //= child["riskdivide"] #need to account for % mod values to prevent misallignment of position sizing (etc B>23 = 4child, B>22 = 4child. S> 22+23 = 45 = 9child. EXTRA ONE... so position -1 instead of 0)
                             
                         child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
                         child['app'].reqIds(child['app'].nextorderId) #reqID increments the next validId *some error.. the api calls this 3 times per trade i do. fking retard. might be because of the threading also. need to do some self check on -id
@@ -82,6 +84,8 @@ def child_connect(child_details):
         print(f'Waiting for Child IP [{child_details["ip_address"]}] Connection')
         time.sleep(1)
     print(f'Child IP [{child_details["ip_address"]}] Connected')
+    child_details["timeconnected"] = datetime.time #record what time child is connect to script
+    print(f'Child time connected [{child_details["timeconnected"]}]')
     print(f'Child IP [{child_details["ip_address"]}] Current Order: {temp_app.nextorderId}\n\n')
     
     return temp_app
@@ -119,7 +123,9 @@ child_details = [
     {
         'ip_address': '220.255.254.206',
         'port': 7499,
-        'client_id': 1
+        'client_id': 1,
+        'riskdivide' : 5,
+        'timeconnected' : None
     }
 ]
 
