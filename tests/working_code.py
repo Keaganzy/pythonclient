@@ -17,9 +17,16 @@ class IBapi(EWrapper, EClient):
         self.nextorderId = orderId
         print('The next valid order id is: ', self.nextorderId)
 
+    def updatePortfolio(self, contract: Contract, position: float, marketPrice: float, marketValue: float, averageCost: float, unrealizedPNL: float, realizedPNL: float, accountName: str):
+            super().updatePortfolio(contract, position, marketPrice, marketValue,averageCost, unrealizedPNL, realizedPNL, accountName)
+            print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
+                   "MarketValue:", marketValue, "AverageCost:", averageCost,
+                  "UnrealizedPNL:", unrealizedPNL, "RealizedPNL:", realizedPNL,
+                  "AccountName:", accountName)
+
     def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId, parentId, lastFillPrice, clientId, whyHeld, mktCapPrice):
             # need to code cancelling orders here based on orderid (but need to first store pairs)
-            print('orderStatus - orderid:', orderId, 'status:', status, 'filled', filled, 'remaining', remaining, 'lastFillPrice', lastFillPrice)
+            print('orderStatus - orderid:', orderId, 'status:', status, 'filled', filled, 'remaining', remaining, 'lastFillPrice', lastFillPrice, 'clientid', clientId)
             
             if status == 'Cancelled' and orderId < 0:
                 for child in child_details:
@@ -51,7 +58,8 @@ class IBapi(EWrapper, EClient):
                         
                         if contract.secType == "STK":
                             order.totalQuantity //= child["riskdivide"] #need to account for % mod values to prevent misallignment of position sizing (etc B>23 = 4child, B>22 = 4child. S> 22+23 = 45 = 9child. EXTRA ONE... so position -1 instead of 0)
-                            
+                            #regardless of -ve or +ve will reallign. if zero we go zero.
+                            child['app'].reqAccountUpdates(True, child['app'].clientId) # request postions will call updatePortfolio()
                         child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
                         child['app'].reqIds(child['app'].nextorderId) #reqID increments the next validId *some error.. the api calls this 3 times per trade i do. fking retard. might be because of the threading also. need to do some self check on -id
 
@@ -84,8 +92,6 @@ def child_connect(child_details):
         print(f'Waiting for Child IP [{child_details["ip_address"]}] Connection')
         time.sleep(1)
     print(f'Child IP [{child_details["ip_address"]}] Connected')
-    child_details["timeconnected"] = datetime.time #record what time child is connect to script
-    print(f'Child time connected [{child_details["timeconnected"]}]')
     print(f'Child IP [{child_details["ip_address"]}] Current Order: {temp_app.nextorderId}\n\n')
     
     return temp_app
@@ -98,7 +104,11 @@ all_orders = []
 master_details = {
     'ip_address': '127.0.0.1',
     'port': 7498,
-    'client_id': 0
+    'client_id': 0,
+    'positions' : {
+        
+        
+    } #dictionary
 }
 
 master_app = IBapi()
@@ -125,14 +135,16 @@ child_details = [
         'port': 7499,
         'client_id': 1,
         'riskdivide' : 5,
-        'timeconnected' : None
     }
 ]
 
 for i, child_det in enumerate(child_details):
     child_details[i]['app'] = child_connect(child_det)
     child_details[i]['order_list'] = []
+    child_details[i]['all_positions'] = []
+
 
 
 master_app.reqAutoOpenOrders(True) #this allows to know what orders are placed because orderid will show up -ve
+
 time.sleep(3)
