@@ -18,11 +18,57 @@ class IBapi(EWrapper, EClient):
         print('The next valid order id is: ', self.nextorderId)
 
     def updatePortfolio(self, contract: Contract, position: float, marketPrice: float, marketValue: float, averageCost: float, unrealizedPNL: float, realizedPNL: float, accountName: str):
-            super().updatePortfolio(contract, position, marketPrice, marketValue,averageCost, unrealizedPNL, realizedPNL, accountName)
-            print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
-                   "MarketValue:", marketValue, "AverageCost:", averageCost,
-                  "UnrealizedPNL:", unrealizedPNL, "RealizedPNL:", realizedPNL,
-                  "AccountName:", accountName)
+        super().updatePortfolio(contract, position, marketPrice, marketValue,averageCost, unrealizedPNL, realizedPNL, accountName)
+        
+        
+        if accountName == 'DU2589906' : #put portfolio in child account and update only when position changes
+            if not have_order(childportlist, contract.symbol): #reuse function to find (paiseh was lazy/dont know how to code another find function)
+                
+                    childportlist.append([contract.symbol,position])
+            else :
+                
+                for x in range(len(childportlist)):
+                    if(childportlist[x][0] in contract.symbol):  #needs exact match and not substring. Some symbols can be "B" and some symbols can be "BABA". Different stocks
+                        if not (childportlist[x][1] == position ):
+                            childportlist[x] = [contract.symbol,position]
+        for x in range(len(childportlist)): 
+            print('child',childportlist[x])
+
+        if accountName == 'DU2309508' : #put portfolio in master account and update only when position changes
+            if not have_order(portlist, contract.symbol):
+                
+                    portlist.append([contract.symbol,position])
+            else :
+                
+                for x in range(len(portlist)):
+                    if(portlist[x][0] in contract.symbol): #needs exact match and not substring. Some symbols can be "B" and some symbols can be "BABA". Different stocks
+                        if not (portlist[x][1] == position ):
+                            portlist[x] = [contract.symbol,position]
+        for x in range(len(portlist)): 
+            print('Master',portlist[x])
+       
+        # for child in child_details:
+            
+        #     i = len(child["positions"])
+        #     for i in child["positions"]:
+        #         child["positions"].append([contract, position, marketPrice, marketValue,averageCost, unrealizedPNL, realizedPNL, accountName])
+        #     print("asdasdasdsad",child["positions"])
+
+        # child_details['positions']['contract'] = contract
+        # print(child_details['positions']['contract'])
+
+        # print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
+        #            "MarketValue:", marketValue, "AverageCost:", averageCost,
+        #           "UnrealizedPNL:", unrealizedPNL, "RealizedPNL:", realizedPNL,
+        #           "AccountName:", accountName)
+
+    def updateAccountTime(self, timeStamp: str):
+        super().updateAccountTime(timeStamp)
+        print("UpdateAccountTime. Time:", timeStamp)
+
+    def accountDownloadEnd(self, accountName: str):
+        super().accountDownloadEnd(accountName)
+        print("AccountDownloadEnd. Account:", accountName)
 
     def orderStatus(self, orderId, status, filled, remaining, avgFullPrice, permId, parentId, lastFillPrice, clientId, whyHeld, mktCapPrice):
             # need to code cancelling orders here based on orderid (but need to first store pairs)
@@ -59,7 +105,10 @@ class IBapi(EWrapper, EClient):
                         if contract.secType == "STK":
                             order.totalQuantity //= child["riskdivide"] #need to account for % mod values to prevent misallignment of position sizing (etc B>23 = 4child, B>22 = 4child. S> 22+23 = 45 = 9child. EXTRA ONE... so position -1 instead of 0)
                             #regardless of -ve or +ve will reallign. if zero we go zero.
-                            child['app'].reqAccountUpdates(True, child['app'].clientId) # request postions will call updatePortfolio()
+
+                            #Wrote draft code in words. Will explain
+
+
                         child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
                         child['app'].reqIds(child['app'].nextorderId) #reqID increments the next validId *some error.. the api calls this 3 times per trade i do. fking retard. might be because of the threading also. need to do some self check on -id
 
@@ -106,7 +155,8 @@ master_details = {
     'port': 7498,
     'client_id': 0,
     'positions' : {
-        
+        # 'contract' : 
+        # contract, position, marketPrice, marketValue,averageCost, unrealizedPNL, realizedPNL, accountName
         
     } #dictionary
 }
@@ -135,6 +185,17 @@ child_details = [
         'port': 7499,
         'client_id': 1,
         'riskdivide' : 5,
+        'positions' :  #dunno how to use
+        {
+            'contract' : None,
+            'position' : None, 
+            'marketPrice' : None,
+            'marketValue' : None,
+            'averageCost' : None,
+            'unrealizedPNL' : None,
+            'realizedPNL' : None,
+            'accountName' : None,
+        }
     }
 ]
 
@@ -143,8 +204,14 @@ for i, child_det in enumerate(child_details):
     child_details[i]['order_list'] = []
     child_details[i]['all_positions'] = []
 
-
+childportlist = []
+portlist = []
 
 master_app.reqAutoOpenOrders(True) #this allows to know what orders are placed because orderid will show up -ve
+
+for child in child_details:
+    child['app'].reqAccountUpdates(True, child['app'].clientId)
+
+master_app.reqAccountUpdates(True, master_app.clientId)# request postions will call updatePortfolio()
 
 time.sleep(3)
