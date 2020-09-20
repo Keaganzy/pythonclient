@@ -39,10 +39,34 @@ class IBapi(EWrapper, EClient):
             except:
                 child_details[self.client_id - 1]['positions'] = {contract.symbol: position}
       
-        print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
-                   "MarketValue:", marketValue, "AverageCost:", averageCost,
-                  "UnrealizedPNL:", unrealizedPNL, "RealizedPNL:", realizedPNL,
-                  "AccountName:", accountName)
+        for child in child_details: #gets the difference in dict to find positions not the same
+            A = list(child['positions'].keys())
+            B = list(master_details['positions'].keys())
+            commonKeys = set(A) - (set(A) - set(B))
+            for key in commonKeys:
+                if((child['positions'][key]) * child['risk_divide'] != (master_details['positions'][key])):
+                    print(key ,":" ,(child['positions'][key]) , " should be " , (master_details['positions'][key]), "risk mul:", child['risk_divide'])
+                    
+                    if((child['positions'][key]) > 0 and master_details['positions'][key] > 0 ): #give binary to child
+                        child['binary_indicator'][key] = [0,0]
+                    if((child['positions'][key]) > 0 and master_details['positions'][key] < 0 ):
+                        child['binary_indicator'][key] = [0,1]
+                    if((child['positions'][key]) < 0 and master_details['positions'][key] > 0 ):
+                        child['binary_indicator'][key] = [1,0]
+                    if((child['positions'][key]) < 0 and master_details['positions'][key] < 0 ):
+                        child['binary_indicator'][key] = [1,1]
+
+                if((child['positions'][key]) * child['risk_divide'] == (master_details['positions'][key])):          
+                    child['binary_indicator'][key] = None
+
+        # for child in child_details:
+        #     print(json.dumps(child['binary_indicator']))
+        #     print(json.dumps(child['positions']))
+
+        # print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
+        #            "MarketValue:", marketValue, "AverageCost:", averageCost,
+        #           "UnrealizedPNL:", unrealizedPNL, "RealizedPNL:", realizedPNL,
+        #           "AccountName:", accountName)
 
     def updateAccountTime(self, timeStamp: str):
         super().updateAccountTime(timeStamp)
@@ -78,7 +102,7 @@ class IBapi(EWrapper, EClient):
                         f'Symbol: {contract.symbol} [ {contract.secType} @ {contract.exchange} ]\n' + \
                         f'Action: {order.action} {order.totalQuantity} [{order.orderType}]\n' + \
                         f'Status: {orderState.status}\n\n'
-            
+            totalQ = order.totalQuantity
             # # if orderState.status == 'PreSubmitted':
             # #     pass
             # else:
@@ -90,20 +114,132 @@ class IBapi(EWrapper, EClient):
                         print(f'Child [{child["ip_address"]}]: Manual Order ID {orderId} paired with {child["app"].nextorderId}')
                         print(f'Current Order Type: {order.orderType}')
                         print(child['order_list'], '\n\n\n')
-                        
+                        TQ = order.totalQuantity 
                         if contract.secType == "STK":
-                            if(contract.symbol in (child['binary_indicator'].keys())): #search dict for contract
+                            if (contract.symbol in (child['binary_indicator'].keys())): #search dict for contract
                                 print('Found binary indicator')
 
-                            order.totalQuantity //= child["risk_divide"] #need to account for % mod values to prevent misallignment of position sizing (etc B>23 = 4child, B>22 = 4child. S> 22+23 = 45 = 9child. EXTRA ONE... so position -1 instead of 0)
-                            #regardless of -ve or +ve will reallign. if zero we go zero.
+                                if (child['binary_indicator'].get(contract.symbol) == [0,0] or child['binary_indicator'].get(contract.symbol) == [1,1]):    #if child has more position. Dont buy
+                                    if((order.totalQuantity//child["risk_divide"]) + (abs(master_details['positions'].get(contract.symbol))//child["risk_divide"]) < abs(child['positions'].get(contract.symbol))):
+                                        break
 
-                            #Wrote draft code in words. Will explain
+                                if (order.action == 'BUY'):
+                                    print(child['binary_indicator'].get(contract.symbol))
+
+                                    if (child['binary_indicator'].get(contract.symbol) == [0,0]):
+                                        if((order.totalQuantity//child["risk_divide"]) + (master_details['positions'].get(contract.symbol)//child["risk_divide"]) > child['positions'].get(contract.symbol)):
+                                            order.totalQuantity = (order.totalQuantity//child["risk_divide"]) + (master_details['positions'].get(contract.symbol)//child["risk_divide"]) - child['positions'].get(contract.symbol)
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.totalQuantity = totalQ
+                                    
+                                    if (child['binary_indicator'].get(contract.symbol) == [0,1]):
+                                        if(order.totalQuantity <= abs(master_details['positions'].get(contract.symbol))):
+                                            OA = order.action
+                                            OT = order.orderType
+                                            order.action = 'SELL'
+                                            order.orderType = "MKT"
+                                            order.totalQuantity = abs(child['positions'].get(contract.symbol))
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.action = OA
+                                            order.orderType = OT
+                                            order.totalQuantity = totalQ
+
+                                    if (child['binary_indicator'].get(contract.symbol) == [1,0]):
+                                        order.totalQuantity = (order.totalQuantity//child["risk_divide"]) + abs((master_details['positions'].get(contract.symbol))//child["risk_divide"]) + abs(child['positions'].get(contract.symbol))
+                                        child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                        child['app'].reqIds(child['app'].nextorderId)
+                                        order.totalQuantity = totalQ
+                                        print('CBCBCBBCBCBCBCBBCBC', child['positions'].get(contract.symbol))
+
+                                    if (child['binary_indicator'].get(contract.symbol) == [1,1]):
+                                        if(TQ <= abs((master_details['positions'].get(contract.symbol)))):
+                                            TQ = child['positions'].get(contract.symbol) * (TQ/master_details['positions'].get(contract.symbol))
+                                            order.totalQuantity = round(TQ)
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.totalQuantity = totalQ
+                                        if(order.totalQuantity > abs(master_details['positions'].get(contract.symbol))):
+                                            order.totalQuantity = ((order.totalQuantity - abs(master_details['positions'].get(contract.symbol)))//child["risk_divide"]) + abs(child['positions'].get(contract.symbol))
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.totalQuantity = totalQ
 
 
-                        child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
-                        child['app'].reqIds(child['app'].nextorderId) #reqID increments the next validId *some error.. the api calls this 3 times per trade i do. fking retard. might be because of the threading also. need to do some self check on -id
 
+                                if(order.action == 'SELL'):
+
+                                    if(child['binary_indicator'].get(contract.symbol) == [0,0]):
+                                        if(order.totalQuantity <= master_details['positions'].get(contract.symbol)):
+                                            TQ = child['positions'].get(contract.symbol) * (TQ/master_details['positions'].get(contract.symbol))
+                                            order.totalQuantity = round(TQ)
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.totalQuantity = totalQ
+                                        if(order.totalQuantity > master_details['positions'].get(contract.symbol)):
+                                            order.totalQuantity = ((order.totalQuantity - master_details['positions'].get(contract.symbol))//child["risk_divide"]) + child['positions'].get(contract.symbol)
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.totalQuantity = totalQ
+
+                                    if(child['binary_indicator'].get(contract.symbol) == [0,1]):
+                                        order.totalQuantity = (order.totalQuantity//child["risk_divide"]) + abs((master_details['positions'].get(contract.symbol))//child["risk_divide"]) + abs(child['positions'].get(contract.symbol))
+                                        child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                        child['app'].reqIds(child['app'].nextorderId)
+                                        order.totalQuantity = totalQ
+
+                                    if(child['binary_indicator'].get(contract.symbol) == [1,0]):
+                                        if(order.totalQuantity <= abs(master_details['positions'].get(contract.symbol))):
+                                            OA = order.action
+                                            OT = order.orderType
+                                            order.action = 'BUY'
+                                            order.orderType = "MKT"
+                                            order.totalQuantity = abs(child['positions'].get(contract.symbol))
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.action = OA
+                                            order.orderType = OT
+                                            order.totalQuantity = totalQ
+
+                                    if(child['binary_indicator'].get(contract.symbol) == [1,1]):
+                                        if((order.totalQuantity//child["risk_divide"]) + (abs(master_details['positions'].get(contract.symbol))//child["risk_divide"]) > abs(child['positions'].get(contract.symbol))):
+                                            order.totalQuantity = (order.totalQuantity//child["risk_divide"]) + (abs(master_details['positions'].get(contract.symbol))//child["risk_divide"]) - abs(child['positions'].get(contract.symbol))
+                                            child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                            child['app'].reqIds(child['app'].nextorderId)
+                                            order.totalQuantity = totalQ
+                            
+                            if(child['positions'].get(contract.symbol) is None):
+                                if (order.action == 'SELL' and master_details['positions'].get(contract.symbol) > 0):    #check opposite directions 
+                                    break
+
+                                if (order.action == 'BUY' and master_details['positions'].get(contract.symbol) < 0):    #check opposite directions 
+                                    break
+
+                                else:
+                                    order.totalQuantity //= child["risk_divide"] 
+                                    child['app'].placeOrder(child['app'].nextorderId, contract, order) 
+                                    child['app'].reqIds(child['app'].nextorderId) 
+                                    order.totalQuantity = totalQ
+
+                            if(child['positions'].get(contract.symbol) is not None):
+                                if (order.action == 'SELL' and (child['positions'].get(contract.symbol) == 0 and child['positions'].get(contract.symbol) - order.totalQuantity//child["risk_divide"] < 0 and master_details['positions'].get(contract.symbol)) > 0):    #check opposite directions 
+                                    break
+
+                                if (order.action == 'BUY' and (child['positions'].get(contract.symbol) == 0 and  child['positions'].get(contract.symbol) + order.totalQuantity//child["risk_divide"] > 0 and master_details['positions'].get(contract.symbol)) < 0):
+                                    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+                                    break
+
+                                else:
+                                    order.totalQuantity //= child["risk_divide"] #need to account for % mod values to prevent misallignment of position sizing (etc B>23 = 4child, B>22 = 4child. S> 22+23 = 45 = 9child. EXTRA ONE... so position -1 instead of 0)
+                                    #regardless of -ve or +ve will reallign. if zero we go zero.
+                                    
+                                    #Wrote draft code in words. Will explain
+
+
+                                    child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
+                                    child['app'].reqIds(child['app'].nextorderId) #reqID increments the next validId *some error.. the api calls this 3 times per trade i do. fking retard. might be because of the threading also. need to do some self check on -id
+                                    order.totalQuantity = totalQ
                 print(order_str)
         
             
@@ -111,6 +247,13 @@ class IBapi(EWrapper, EClient):
     def execDetails(self, reqId, contract, execution):
         print('Order Executed: ', reqId, contract.symbol, contract.secType, contract.currency, execution.execId, execution.orderId, execution.shares, execution.lastLiquidity)
 
+# def buySwitch(x, totalQty, risk, CPOS, MPOS):
+#     return {
+#         '[0,0]': 1,
+#         '[0,1]': 2,
+#         '[1,0]': 1,
+#         '[1,1]': 2
+#     }.get(x, 9)    # 9 is default if x not found (trying to use switch)
                 
 def have_order(child_list, orderId):
     if len(child_list) > 0:
@@ -177,6 +320,15 @@ child_details = [
         'risk_divide' : 5,
         "positions": {},
         'binary_indicator' : {}
+    },
+    {
+        'ip_address': '127.0.0.1',
+        'port': 7501,
+        'client_id': 2,
+        'account_name' : None,
+        'risk_divide' : 10,
+        "positions": {},
+        'binary_indicator' : {}
     }
 ]
 
@@ -203,7 +355,7 @@ for child in child_details: #gets the difference in dict to find positions not t
             
             if((child['positions'][key]) > 0 and master_details['positions'][key] > 0 ): #give binary to child
                 child['binary_indicator'][key] = [0,0]
-                print(json.dumps(child['binary_indicator']))
+                
             if((child['positions'][key]) > 0 and master_details['positions'][key] < 0 ):
                 child['binary_indicator'][key] = [0,1]
             if((child['positions'][key]) < 0 and master_details['positions'][key] > 0 ):
@@ -212,6 +364,7 @@ for child in child_details: #gets the difference in dict to find positions not t
                 child['binary_indicator'][key] = [1,1]          
 
 for child in child_details:
+    print(json.dumps(child['binary_indicator']))
     print(json.dumps(child['positions']))
 
 print(json.dumps(master_details['positions']))
