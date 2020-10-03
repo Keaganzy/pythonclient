@@ -59,9 +59,9 @@ class IBapi(EWrapper, EClient):
                 if((child['positions'][key]) * child['risk_divide'] == (master_details['positions'][key])):          
                     child['binary_indicator'][key] = None
 
-        # for child in child_details:
-        #     print(json.dumps(child['binary_indicator']))
-        #     print(json.dumps(child['positions']))
+        for child in child_details:
+            print(json.dumps(child['binary_indicator']))
+            print(json.dumps(child['positions']))
 
         # print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
         #            "MarketValue:", marketValue, "AverageCost:", averageCost,
@@ -174,6 +174,7 @@ class IBapi(EWrapper, EClient):
                                         if(order.totalQuantity <= master_details['positions'].get(contract.symbol)):
                                             TQ = child['positions'].get(contract.symbol) * (TQ/master_details['positions'].get(contract.symbol))
                                             order.totalQuantity = round(TQ)
+                                            print("testting",TQ)
                                             child['app'].placeOrder(child['app'].nextorderId, contract, order) #place order based on client 0 order
                                             child['app'].reqIds(child['app'].nextorderId)
                                             order.totalQuantity = totalQ
