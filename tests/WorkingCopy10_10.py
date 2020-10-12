@@ -29,10 +29,8 @@ class IBapi(EWrapper, EClient):
         if self.client_id == 0: #master update positions size
             try:
                 master_details['positions'][contract.symbol] = position
-                print('---->', master_details)
             except:
                 master_details['positions'] = {contract.symbol: position}
-                print('<------', master_details)
             pass
             # Master ID
         else:
@@ -64,6 +62,7 @@ class IBapi(EWrapper, EClient):
 
                 child['binary_indicator'][key] = [child_binary, master_binary]
 
+        
         # print("UpdatePortfolio.", "Symbol:", contract.symbol, "SecType:", contract.secType, "Exchange:", contract.exchange, "Position:", position, "MarketPrice:", marketPrice,
         #            "MarketValue:", marketValue, "AverageCost:", averageCost,
         #           "UnrealizedPNL:", unrealizedPNL, "RealizedPNL:", realizedPNL,
@@ -92,22 +91,23 @@ class IBapi(EWrapper, EClient):
     # Error Function  
     def openOrder(self, orderId, contract, order, orderState):
             # print('openOrder id:', orderId, contract.symbol, contract.secType, '@', contract.exchange, ':', order.action, order.orderType, order.totalQuantity, orderState.status)    
-            order_str = f'Open Order to Child:\n' + \
-                        f'Master Order ID: {orderId}\n' + \
-                        f'Symbol: {contract.symbol} [ {contract.secType} @ {contract.exchange} ]\n' + \
-                        f'Action: {order.action} {order.totalQuantity} [{order.orderType}]\n' + \
-                        f'Status: {orderState.status}\n\n'
+            
             ORIGINAL_QUANTITY = order.totalQuantity
 
             if True:
                 for child in child_details:
                     child_order = order
+                    order_str = f'\n\n Open Order to Child:\n' + \
+                        f'Order ID: {orderId}\n' + \
+                        f'Symbol: {contract.symbol} [ {contract.secType} @ {contract.exchange} ]\n' + \
+                        f'Action: {order.action} {order.totalQuantity} [{order.orderType}]\n' + \
+                        f'Status: {orderState.status}'
 
                     if isinstance(child['app'].nextorderId, int) and orderId < 0:
                         print(f'Manual Order Number {orderId} Received')
                         if not have_order(child['order_list'], orderId):
                             child['order_list'].append( [child['app'].nextorderId, orderId] )
-                            print(f'Child [{child["ip_address"]}]: Manual Order ID {orderId} paired with {child["app"].nextorderId}')
+                            print(f'Child [{child["client_id"]}]: Manual Order ID {orderId} paired with {child["app"].nextorderId}')
                             print(f'Current Order Type: {child_order.orderType}')
                             print(child['order_list'], '\n\n\n')
                             if contract.secType == "STK":
@@ -226,7 +226,11 @@ class IBapi(EWrapper, EClient):
 
                                 else:
                                     print ('WARRRRRRRRNNNNNNINNNNGGGGGGGGGG ERRROR HERE')
-                print(order_str)
+                                    child_order.totalQuantity = ORIGINAL_QUANTITY // child["risk_divide"]
+                                    child['app'].placeOrder(child['app'].nextorderId, contract, child_order) #place order based on client 0 order
+                                    child['app'].reqIds(child['app'].nextorderId)
+                    print(order_str)
+                    print('---->','\n', 'Client ID:', child['client_id'], '\n', 'IP Address: ', child['ip_address'], '\n','Positions Holding: ', child['positions'], '\n', 'List of Trades not in sync:', child['binary_indicator'], '\n', 'Order pair:' , child['order_list'])
         
             
 
@@ -303,7 +307,7 @@ child_details = [
         'port': 7499,
         'client_id': 1,
         'account_name' : None,
-        'risk_divide' : 5,
+        'risk_divide' : 20,
         "positions": {},
         'binary_indicator' : {}
     },
@@ -349,10 +353,15 @@ for child in child_details: #gets the difference in dict to find positions not t
 
             child['binary_indicator'][key] =[child_binary, master_binary]
 
-            print(key ,":" ,(child['positions'][key]) , " Wrong. Master position is " , (master_details['positions'][key]), "risk mul:", child['risk_divide'])
+            # print(key ,":" ,(child['positions'][key]) , " Wrong. Master position is " , (master_details['positions'][key]), "risk mul:", child['risk_divide'])
             
-for child in child_details:
-    print(json.dumps(child['binary_indicator']))
-    print(json.dumps(child['positions']))
+# for child in child_details:
+#     print(json.dumps(child['binary_indicator']))
+#     print(json.dumps(child['positions']))
 
-print(json.dumps(master_details['positions']))
+# print(json.dumps(master_details['positions']))
+
+print('---->','\n','IP Address: ', master_details['ip_address'], '\n','Positions Holding: ', master_details['positions'])
+# print('---->', child_details)
+for child in child_details:
+    print('---->','\n', 'Client ID:', child['client_id'], '\n', 'IP Address: ', child['ip_address'], '\n','Positions Holding: ', child['positions'], '\n', 'List of Trades not in sync:', child['binary_indicator'], '\n', 'Order pair:' , child['order_list'])
