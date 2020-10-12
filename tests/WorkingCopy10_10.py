@@ -91,7 +91,6 @@ class IBapi(EWrapper, EClient):
     # Error Function  
     def openOrder(self, orderId, contract, order, orderState):
             # print('openOrder id:', orderId, contract.symbol, contract.secType, '@', contract.exchange, ':', order.action, order.orderType, order.totalQuantity, orderState.status)    
-            
             ORIGINAL_QUANTITY = order.totalQuantity
 
             if True:
